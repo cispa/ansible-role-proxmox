@@ -130,6 +130,18 @@
       check_mode: no
       register: _ceph_pools
 
+    - name: Debug existing matching Ceph pools
+      debug:
+        msg: >-
+          Existing pools for {{ item.name }}:
+          {{
+            [item.name ~ '-data', item.name ~ '-metadata'] |
+            intersect(_ceph_pools.stdout_lines)
+          }}
+      loop: "{{ pve_ceph_pools }}"
+      loop_control:
+        label: "{{ item.name }}"
+
     - name: "Verify k and m are defined when erasure-coding is selected as ceph pool protection strategy"
       ansible.builtin.assert:
         that:
@@ -167,7 +179,11 @@
         {% if 'protection_strategy' in item and item.protection_strategy == 'erasure-coding' %}
         --erasure-coding k={{ item.k }},m={{ item.m }}
         {% endif %}
-      when: item.name not in _ceph_pools.stdout_lines
+      # when: item.name not in _ceph_pools.stdout_lines
+      when: >
+        ([item.name ~ '-data', item.name ~ '-metadata'] |
+          difference(_ceph_pools.stdout_lines) |
+          length == 2)
       with_items: '{{ pve_ceph_pools }}'
   when: "inventory_hostname == groups[pve_ceph_mon_group][0]"
 
